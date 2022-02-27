@@ -3,6 +3,7 @@
 #include <iostream>
 #include <getopt.h>
 #include <string>
+#include <csignal>
 
 #include <arpa/inet.h>
 #include <netinet/ether.h>
@@ -62,6 +63,8 @@ struct options{
 // Error buffer used by the pcap library
 char errbuf[PCAP_ERRBUF_SIZE];
 
+// Interface handle (needs to be global to exit safely after SIGINT)
+pcap_t *handle = NULL;
 
 /*
  *
@@ -69,6 +72,13 @@ char errbuf[PCAP_ERRBUF_SIZE];
  *
  */
 
+
+void sigint_handler(int sig){
+  if(handle){
+    pcap_close(handle);
+  }
+  exit(sig);
+}
 
 /*
  * @brief Parse user provided options to a structure
@@ -148,10 +158,10 @@ struct options get_options(int argc, char **argv){
  *
  * @return a handle to the interface
  */
-pcap_t *open_interface(char *interface){
+void open_interface(char *interface){
 
-  // Open the interface
-  pcap_t *handle = pcap_open_live(interface, BUFSIZ, true, 1000, errbuf);
+  // Open the interface (and save the handle to a global variable)
+  handle = pcap_open_live(interface, BUFSIZ, true, 1000, errbuf);
   if(!handle) {
     cerr << "Couldn't open interface " << interface << ". Error message: " 
       << errbuf << endl;
@@ -164,9 +174,8 @@ pcap_t *open_interface(char *interface){
     pcap_close(handle);
     exit(1);
   }
-
-  return handle;
 }
+
 
 /*
  * @brief A helper function to add a filter primitive to a string expression
@@ -190,6 +199,7 @@ void add_filter_primitive(string *expr, int enabled, string str, int port){
     includeOr = true;
   }
 }
+
 
 /*
  * @brief Generates a string to filter the frames by (based on user options in
@@ -216,12 +226,13 @@ string get_filter_string(struct options opts){
   return protocolsFilter;
 }
 
+
 /*
  * @brief Compiles and installs a filter
  *
  * @param filterExpr (string, containing the filter expression)
  */
-void apply_filter(pcap_t *handle, string filterExpr){
+void apply_filter(string filterExpr){
   struct bpf_program filter;
 
   // Compile the filter
@@ -350,6 +361,16 @@ void print_ip_packet(const u_char *packet, int frameLen, int version){
     protocol = (int)ip_h->ip6_ctlun.ip6_un1.ip6_un1_nxt;
   }
 
+  // Print the transport layer protocol
+  if(protocol == TCP_N){
+    cout << "Transport layer protocol: TCP" << endl;
+  }else if(protocol == UDP_N){
+    cout << "Transport layer protocol: UDP" << endl;
+  }else if(protocol == ICMP_N){
+    cout << "Transport layer protocol: ICMP" << endl;
+  }
+
+
   // Print the IP addresses
   cout << "src IP: " << src_ip << endl;
   cout << "dst IP: " << dst_ip << endl;
@@ -389,7 +410,6 @@ void print_ip_packet(const u_char *packet, int frameLen, int version){
  */
 
 
-// TODO print packet protocol
 // TODO close interface handle after SIGINT
 int main(int argc, char **argv){
 
@@ -399,17 +419,20 @@ int main(int argc, char **argv){
     return 0;
   }
 
+  // Register a signal handler for SIGINT
+  signal(SIGINT, sigint_handler);
+
   // Get all user options to a structure
   struct options opts = get_options(argc, argv);
   
   // Open the interface provided
-  pcap_t *handle = open_interface(opts.interface);
+  open_interface(opts.interface);
 
   // Create a filter expression (string) based on the options provided
   string filterExpr = get_filter_string(opts);
 
   // Apply the created filter to the interface handle
-  apply_filter(handle, filterExpr);
+  apply_filter(filterExpr);
 
   // Try to receive packetsAmount packets and print packet information after
   // receiving each one of them
@@ -434,6 +457,7 @@ int main(int argc, char **argv){
 
     // The packet is of ARP protocol
     if(eth_h->ether_type == 0x0806 || eth_h->ether_type == 0x0608){
+      cout << "Network layer protocol: ARP" << endl;
 
       // Print all data needed about an ARP packet
       print_arp_packet();
@@ -450,6 +474,7 @@ int main(int argc, char **argv){
         i--;
         continue;
       }
+      cout << "Network layer protocol: IPv" << version << endl;
 
       // Print IP addresses, ports and data of an IP packet
       print_ip_packet(packet, (int)header.caplen, version);
