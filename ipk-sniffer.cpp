@@ -1,3 +1,11 @@
+/**
+ * @brief A simple packet (frame) sniffer
+ * @author Patrik Skaloš
+ * @year 2022
+ */
+
+
+// Standard libraries
 #include <pcap.h>
 #include <iomanip>
 #include <iostream>
@@ -5,6 +13,7 @@
 #include <string>
 #include <csignal>
 
+// Networking libraries
 #include <arpa/inet.h>
 #include <netinet/ether.h>
 #include <netinet/ip.h>        // IPv4
@@ -48,7 +57,7 @@ Options:\n\
 
 // A structure containing all user-provided options
 struct options{
-  char *interface = NULL;
+  char *interface = nullptr;
   int port = -1;
   int tcp = 0, udp = 0, arp = 0, icmp = 0;
   int packetsAmount = 1;
@@ -64,7 +73,8 @@ struct options{
 char errbuf[PCAP_ERRBUF_SIZE];
 
 // Interface handle (needs to be global to exit safely after SIGINT)
-pcap_t *handle = NULL;
+pcap_t *handle = nullptr;
+
 
 /*
  *
@@ -80,7 +90,7 @@ void sigint_handler(int sig){
   exit(sig);
 }
 
-/*
+/**
  * @brief Parse user provided options to a structure
  * 
  * @param argc
@@ -92,18 +102,18 @@ struct options get_options(int argc, char **argv){
   struct options opts;
 
   // Long options definition
-  const struct option long_opts[] = {
+  const struct option longOpts[] = {
     {"interface", optional_argument, 0,             'i'},
     {"tcp",       no_argument,       0,             't'},
     {"udp",       no_argument,       0,             'u'},
-    {"arp",       no_argument,       &(opts.arp),  1},
-    {"icmp",      no_argument,       &(opts.icmp), 1},
+    {"arp",       no_argument,       &(opts.arp),   1},
+    {"icmp",      no_argument,       &(opts.icmp),  1},
     {0, 0, 0, 0}
   };
 
   // Parse the provided options 
   int opt;
-  while((opt = getopt_long(argc, argv, "i::p:tun:", long_opts, nullptr)) != -1){
+  while((opt = getopt_long(argc, argv, "i::p:tun:", longOpts, nullptr)) != -1){
     switch (opt){
       case 'i':
         if(optind < argc && argv[optind][0] != '-'){
@@ -126,7 +136,7 @@ struct options get_options(int argc, char **argv){
   }
 
   // If no interface was selected or the option wasn't used, print all available
-  if(opts.interface == NULL){
+  if(opts.interface == nullptr){
 
     // Get the list and check for errors
     pcap_if_t *interfaces;
@@ -137,7 +147,7 @@ struct options get_options(int argc, char **argv){
     // Print it and free the memory
     }else{
       cout << "Interface list:" << endl;
-      for(pcap_if_t *i = interfaces; i != NULL; i = i->next){
+      for(pcap_if_t *i = interfaces; i != nullptr; i = i->next){
         cout << "  " << i->name << endl;
       }
       pcap_freealldevs(interfaces);
@@ -150,7 +160,7 @@ struct options get_options(int argc, char **argv){
 }
 
 
-/*
+/**
  * @brief Open an interface with name provided by an argument and return a
  * handle
  *
@@ -177,7 +187,7 @@ void open_interface(char *interface){
 }
 
 
-/*
+/**
  * @brief A helper function to add a filter primitive to a string expression
  *
  * @param expr (string *, the expression built so far)
@@ -187,21 +197,27 @@ void open_interface(char *interface){
  */
 void add_filter_primitive(string *expr, int enabled, string str, int port){
   static bool includeOr = false;
+
+  // Do nothing if the protocol is not enabled
   if(enabled){
+
+    // Only include 'or' if this is not the first primitive
     if(includeOr){
       *expr += " or ";
     }
+    includeOr = true;
+
+    // If port is defined, eg. '(tcp and port 80)' instead of 'tcp'
     if(port != -1){
       *expr += "(" + string(str) + " and port " + to_string(port) + ")";
     }else{
       *expr += string(str);
     }
-    includeOr = true;
   }
 }
 
 
-/*
+/**
  * @brief Generates a string to filter the frames by (based on user options in
  * structure options)
  *
@@ -209,7 +225,7 @@ void add_filter_primitive(string *expr, int enabled, string str, int port){
  *
  * @return a string containing the filtering expression
  */
-string get_filter_string(struct options opts){
+string get_filter_expr(struct options opts){
 
   // If no option is selected, manually select all
   if(opts.tcp + opts.udp + opts.arp + opts.icmp == 0){
@@ -227,7 +243,7 @@ string get_filter_string(struct options opts){
 }
 
 
-/*
+/**
  * @brief Compiles and installs a filter
  *
  * @param filterExpr (string, containing the filter expression)
@@ -253,7 +269,7 @@ void apply_filter(string filterExpr){
 }
 
 
-/*
+/**
  * @brief Print all data of packet from the offset to the end in format:
  * offset, 16 characters in hex separated by a space, characters.
  * While offset is a four digit hex number followed by a colon and
@@ -297,7 +313,7 @@ void print_data(const u_char *packet, int frameLen, int offset){
 }
 
 
-/*
+/**
  * @brief Prints information about an ARP packet (none needs to be printed so
  * it prints none)
  */
@@ -310,7 +326,7 @@ void print_arp_packet(){
 }
 
 
-/*
+/**
  * @brief Prints information about an IP packet (TCP, UDP or ICMP) - IP
  * addresses, ports and calls print_data() function to print all the
  * encapsulated data
@@ -326,39 +342,39 @@ void print_ip_packet(const u_char *packet, int frameLen, int version){
 
   // Get IP addresses and protocol used from the packet and increment the offset
   // (all using different ways for ipv4 and ipv6)
-  char src_ip[MAX_IP_LEN];
-  char dst_ip[MAX_IP_LEN];
+  char srcIp[MAX_IP_LEN];
+  char dstIp[MAX_IP_LEN];
   int protocol;
   if(version == 4){
 
     // Typecast to an IPv4 struct from netinet/ip.h library
-    const struct ip *ip_h = (struct ip*)(packet + offset);
+    const struct ip *ipv4_hdr = (struct ip*)(packet + offset);
 
     // In IPv4, 'header_len' field specifies the number of 32b words in the
     // header, so we multiply by 4 to get the length in bytes
-    offset += (int)(ip_h->ip_hl) * 4;
+    offset += (int)(ipv4_hdr->ip_hl) * 4;
 
     // Convert the version 4 IPs to strings using arpa/inet.h library
-    inet_ntop(AF_INET, &(ip_h->ip_src), src_ip, MAX_IP_LEN);
-    inet_ntop(AF_INET, &(ip_h->ip_dst), dst_ip, MAX_IP_LEN);
+    inet_ntop(AF_INET, &(ipv4_hdr->ip_src), srcIp, MAX_IP_LEN);
+    inet_ntop(AF_INET, &(ipv4_hdr->ip_dst), dstIp, MAX_IP_LEN);
 
     // Get the protocol number
-    protocol = (int)ip_h->ip_p;
+    protocol = (int)ipv4_hdr->ip_p;
 
   }else if(version == 6){
 
     // Typecast to an IPv6 struct from netinet/ip6.h library
-    const struct ip6_hdr *ip_h = (struct ip6_hdr*)(packet + offset);
+    const struct ip6_hdr *ipv6_hdr = (struct ip6_hdr*)(packet + offset);
 
     // IPv6 has a constant header length of 40B
     offset += 40; 
 
     // Convert the version 6 IPs to strings using arpa/inet.h library
-    inet_ntop(AF_INET6, &(ip_h->ip6_src), src_ip, MAX_IP_LEN);
-    inet_ntop(AF_INET6, &(ip_h->ip6_dst), dst_ip, MAX_IP_LEN);
+    inet_ntop(AF_INET6, &(ipv6_hdr->ip6_src), srcIp, MAX_IP_LEN);
+    inet_ntop(AF_INET6, &(ipv6_hdr->ip6_dst), dstIp, MAX_IP_LEN);
 
     // Get the protocol number
-    protocol = (int)ip_h->ip6_ctlun.ip6_un1.ip6_un1_nxt;
+    protocol = (int)ipv6_hdr->ip6_ctlun.ip6_un1.ip6_un1_nxt;
   }
 
   // Print the transport layer protocol
@@ -370,10 +386,9 @@ void print_ip_packet(const u_char *packet, int frameLen, int version){
     cout << "Transport layer protocol: ICMP" << endl;
   }
 
-
   // Print the IP addresses
-  cout << "src IP: " << src_ip << endl;
-  cout << "dst IP: " << dst_ip << endl;
+  cout << "src IP: " << srcIp << endl;
+  cout << "dst IP: " << dstIp << endl;
 
   // Print ports if TCP or UDP is used (ICMP doesn't use a port)
   // (they are at the same place for both tcp and udp protocols)
@@ -389,8 +404,8 @@ void print_ip_packet(const u_char *packet, int frameLen, int version){
   if(protocol == TCP_N){
 
     // The amount of 32b words in TCP header is in 'Data offset' field
-    const struct tcphdr *tcp_h = (struct tcphdr*)(packet + offset);
-    offset += 4 * (int)(tcp_h->th_off);
+    const struct tcphdr *tcp_hdr = (struct tcphdr*)(packet + offset);
+    offset += 4 * (int)(tcp_hdr->th_off);
 
   }else if(protocol == UDP_N || protocol == ICMP_N){
 
@@ -410,7 +425,6 @@ void print_ip_packet(const u_char *packet, int frameLen, int version){
  */
 
 
-// TODO close interface handle after SIGINT
 int main(int argc, char **argv){
 
   // Print usage if no arguments are provided
@@ -429,7 +443,7 @@ int main(int argc, char **argv){
   open_interface(opts.interface);
 
   // Create a filter expression (string) based on the options provided
-  string filterExpr = get_filter_string(opts);
+  string filterExpr = get_filter_expr(opts);
 
   // Apply the created filter to the interface handle
   apply_filter(filterExpr);
@@ -448,15 +462,17 @@ int main(int argc, char **argv){
       << setfill('0') << setw(3) << 'Z' << endl;
 
     // Get the ethernet frame header and print MAC addresses
-    const struct ether_header *eth_h = (struct ether_header*)(packet);
-    cout << "src MAC: " << ether_ntoa((ether_addr *)eth_h->ether_shost) << endl;
-    cout << "dst MAC: " << ether_ntoa((ether_addr *)eth_h->ether_dhost) << endl;
+    const struct ether_header *eth_hdr = (struct ether_header*)(packet);
+    cout << "src MAC: " << ether_ntoa((ether_addr *)eth_hdr->ether_shost) << endl;
+    cout << "dst MAC: " << ether_ntoa((ether_addr *)eth_hdr->ether_dhost) << endl;
     
     // Print frame length
     cout << "frame length: " << header.caplen << " bytes" << endl;
 
     // The packet is of ARP protocol
-    if(eth_h->ether_type == 0x0806 || eth_h->ether_type == 0x0608){
+    if(eth_hdr->ether_type == 0x0806 || eth_hdr->ether_type == 0x0608){
+
+      // Print the network layer protocol
       cout << "Network layer protocol: ARP" << endl;
 
       // Print all data needed about an ARP packet
@@ -465,15 +481,17 @@ int main(int argc, char **argv){
     // The packet is of IP protocol - get the version and print more data
     }else{
       int version;
-      if(eth_h->ether_type == 0x0800 || eth_h->ether_type == 0x0008){
+      if(eth_hdr->ether_type == 0x0800 || eth_hdr->ether_type == 0x0008){
         version = 4;
-      }else if(eth_h->ether_type == 0x86dd || eth_h->ether_type == 0xdd86){
+      }else if(eth_hdr->ether_type == 0x86dd || eth_hdr->ether_type == 0xdd86){
         version = 6;
       }else{
         // If for some reason the version is not 4 nor 6, ignore this packet
         i--;
         continue;
       }
+
+      // Print the network layer protocol
       cout << "Network layer protocol: IPv" << version << endl;
 
       // Print IP addresses, ports and data of an IP packet
