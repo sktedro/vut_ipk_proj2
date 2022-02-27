@@ -5,8 +5,77 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <string>
+#include <bitset> // TODO remove
 
 using namespace std;
+
+// Ethernet frame header structure
+const int ETH_HEADER_LEN = 14; // Ethernet header is 14B long
+const int ETH_HEADER_ADDR_LEN = 6; // 48b (6B) for a MAC address
+const int ETH_HEADER_TYPE_LEN = 2; // 2B for the ether type
+struct eth_header{
+  u_char dst_addr[ETH_HEADER_ADDR_LEN];
+  u_char src_addr[ETH_HEADER_ADDR_LEN];
+  u_char ether_type[ETH_HEADER_TYPE_LEN];
+};
+
+// IPv4 packet header structure
+struct ipv4_header{
+  u_char version_and_header_len;
+  u_char tos;
+  short total_len;
+  short id;
+  short flags_and_fragment_offset;
+  u_char ttl;
+  u_char proto;
+  short header_checksum;
+  u_char src_addr[4];
+  u_char dst_addr[4];
+};
+
+// IPv6 packet header structure
+struct ipv6_header{
+  short version_and_tc_and_flow_label;
+  short total_len;
+  u_char next_header;
+  u_char hop_limit;
+  u_char src_addr[16];
+  u_char dst_addr[16];
+};
+
+void print_mac_addr(string label, const u_char *mac){
+  cout << label;
+  for(int i = 0; i < ETH_HEADER_ADDR_LEN; i++){
+    if(i > 0){
+      cout << ":";
+    }
+    cout << setw(2) << hex << (int)mac[i];
+  }
+  cout << endl;
+}
+
+void print_ipv4_addr(string label, const u_char *ip){
+  cout << label;
+  for(int i = 0; i < 4; i++){ // IPv4 has 4B long addresses
+    if(i > 0){
+      cout << ".";
+    }
+    cout << (int)ip[i];
+  }
+  cout << endl;
+}
+
+void print_ipv6_addr(string label, const u_char *ip){
+  cout << label;
+  for(int i = 0; i < 16; i++){ // IPv6 has 16B long addresses
+    if(i > 0 && i % 2 == 0){
+      cout << ":";
+    }
+    cout << hex << (int)ip[i];
+  }
+  cout << endl;
+}
+
 
 int main(int argc, char **argv){
 
@@ -88,6 +157,12 @@ int main(int argc, char **argv){
     return 1;
   }
 
+  // Check if the interface works with ethernet headers
+  if (pcap_datalink(handle) != DLT_EN10MB) {
+    cerr << "Interface '" << interface << "' is not supported" << endl;
+    return 1;
+  }
+
   // Protocol filter setting (eg. 'tcp or udp')
   string protocols_filter = "";
   if(tcp + udp + arp + icmp == 0){
@@ -143,23 +218,108 @@ int main(int argc, char **argv){
 
     // Grab a packet
     packet = pcap_next(handle, &header);
-    printf("Got a packet with length of [%d]\n", header.len); // TODO
 
     // Print the timestamp
     time_t tmp = header.ts.tv_sec;
     cout << "timestamp: " << put_time(gmtime(&tmp ), "%FT%T") << '.' 
       << setfill('0') << setw(3) << 'Z' << endl;
 
-    // Get IP protocol version
-    /*
-     * char version[5];
-     * for(int j = 0; j < 4; j++){
-     *   version[j] = packet[j];
-     * }
-     * version[5] = '\0';
-     * cout << "<" << version << ">" << endl;
-     */
+    // Get the ethernet (frame) header by typecasting received frame to a struct
+    const struct eth_header *eth_h = (struct eth_header*)(packet);
 
+    // Print the MAC addresses
+    print_mac_addr("src MAC: ", eth_h->src_addr);
+    print_mac_addr("dst MAC: ", eth_h->dst_addr);
+
+    // Print frame length
+    cout << dec << "frame length: " << (int)header.len << " bytes" << endl;
+    // TODO that's not frame len lol
+
+
+    // Get the packet header (IP protocol)
+    int offset = ETH_HEADER_LEN;
+    int protocol;
+
+    // To get the version, get the first 8 bits of the packet header, shift to
+    // the right by 4 bits since the version is 4 bits long and convert to int
+    const int version = (int)((u_char)(*(packet + offset)) >> 4);
+    if(version == 4){
+      const struct ipv4_header *ip_h = (struct ipv4_header*)(packet + offset);
+
+      // header_len in ipv4 contains 4 bits that specify the number of 32-bit 
+      // words in the header, so we multiply by 4 to get the length in bytes
+      const int header_len = (int)(ip_h->version_and_header_len & 0b1111) * 4;
+      offset += header_len;
+
+      print_ipv4_addr("src IP: ", ip_h->src_addr);
+      print_ipv4_addr("dst IP: ", ip_h->dst_addr);
+
+      protocol = (int)ip_h->proto;
+
+    }else if(version == 6){
+      const struct ipv6_header *ip_h = (struct ipv6_header*)(packet + offset);
+
+      const int header_len = 40; // ipv6 has a constant header length of 40B
+      offset += header_len;
+
+      print_ipv6_addr("src IP: ", ip_h->src_addr);
+      print_ipv6_addr("dst IP: ", ip_h->dst_addr);
+
+      protocol = (int)ip_h->next_header;
+
+      // TODO else ICMP, ARP?
+    }else{
+      // TODO something went wrong
+    }
+
+    // Print ports (they are at the same place for both tcp and udp protocols)
+
+    int src_port = (int)((short)*(packet + offset));
+    cout << "src port: " << src_port << endl;
+
+    int dst_port = (int)((short)*(packet + offset + 2));
+    cout << "dst port: " << dst_port << endl;
+
+    // TCP header length in 4B unit is specified by 'Data offset' field
+    if(protocol == 6){
+      offset += (int)((u_char)(*(packet + offset + 12)) >> 4 & 0b00001111);
+
+    // UDP protocol has a fixed header size of 8B
+    }else if(protocol == 17){
+      offset += 8;
+    }
+
+
+
+    // Print data
+    for(int j = offset; j < (int)header.len; j += 16){
+
+      // Print offset in data in hex (not 'offset', but 'j')
+
+      cout << "0x" << hex << setw(4) << j - offset << ": ";
+      // Print bytes with spaces separating them in lowercase
+      for(int k = j; k < j + 16; k++){
+        // If we reached the end, pad the rest of the line with spaces
+        if(k >= (int)header.len){
+          cout << "  ";
+        }else{
+          cout << setw(2) << hex << (int)*(packet + k);
+        }
+        cout << " ";
+      }
+
+      // Print characters one by one (non-printable (up to ascii val 31) as '.')
+      for(int k = j; k < j + 16 && k < (int)header.len; k++){
+        char c = (char)*(packet + k);
+        if(c < 32){
+          cout << ".";
+        }else{
+          cout << c;
+        }
+      }
+
+      cout << endl;
+    }
   }
 
   // Close the interface handle
