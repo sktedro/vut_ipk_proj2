@@ -168,6 +168,28 @@ pcap_t *open_interface(char *interface){
   return handle;
 }
 
+/*
+ * @brief A helper function to add a filter primitive to a string expression
+ *
+ * @param expr (string *, the expression built so far)
+ * @param enabled (int, from struct options to say if the protocol is enabled)
+ * @param str (string, the protocol name)
+ * @param port (int, from struct options, -1 if none is selected)
+ */
+void add_filter_primitive(string *expr, int enabled, string str, int port){
+  static bool includeOr = false;
+  if(enabled){
+    if(includeOr){
+      *expr += " or ";
+    }
+    if(port != -1){
+      *expr += "(" + string(str) + " and port " + to_string(port) + ")";
+    }else{
+      *expr += string(str);
+    }
+    includeOr = true;
+  }
+}
 
 /*
  * @brief Generates a string to filter the frames by (based on user options in
@@ -176,46 +198,23 @@ pcap_t *open_interface(char *interface){
  * @param opts (struct options)
  *
  * @return a string containing the filtering expression
- * TODO
  */
 string get_filter_string(struct options opts){
 
-  // Port filter setting (eg. 'port 80')
-  string port_filter = "port " + to_string(opts.port);
-
-  // Protocol filter setting (eg. 'tcp or udp')
-  string protocols_filter = "";
+  // If no option is selected, manually select all
   if(opts.tcp + opts.udp + opts.arp + opts.icmp == 0){
-    protocols_filter = "tcp or udp or arp or icmp";
-  }else{
-    if(opts.tcp){
-      protocols_filter += "tcp";
-      if(opts.udp || opts.arp || opts.icmp){
-        protocols_filter += " or ";
-      }
-    }
-    if(opts.udp){
-      protocols_filter += "udp";
-      if(opts.arp || opts.icmp){
-        protocols_filter += " or ";
-      }
-    }
-    if(opts.arp){
-      protocols_filter += "arp";
-      if(opts.icmp){
-        protocols_filter += " or ";
-      }
-    }
-    if(opts.icmp){
-      protocols_filter += "icmp";
-    }
+    opts.tcp = opts.udp = opts.arp = opts.icmp = 1;
   }
 
-  // TODO:
-  // return protocols_filter + " and " + port_filter;
-  return protocols_filter;
-}
+  // Protocol filter setting (eg. '(tcp and port 80) or icmp')
+  string protocolsFilter = "";
+  add_filter_primitive(&protocolsFilter, opts.tcp,  "tcp",  opts.port);
+  add_filter_primitive(&protocolsFilter, opts.udp,  "udp",  opts.port);
+  add_filter_primitive(&protocolsFilter, opts.arp,  "arp",  opts.port);
+  add_filter_primitive(&protocolsFilter, opts.icmp, "icmp", -1);
 
+  return protocolsFilter;
+}
 
 /*
  * @brief Compiles and installs a filter
