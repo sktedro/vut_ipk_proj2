@@ -83,6 +83,11 @@ pcap_t *handle = nullptr;
  */
 
 
+/**
+ * @brief Close tha interface handle after SIGINT (if it is open)
+ *
+ * @param sig (int)
+ */
 void sigint_handler(int sig){
   if(handle){
     pcap_close(handle);
@@ -135,28 +140,29 @@ struct options get_options(int argc, char **argv){
     }
   }
 
-  // If no interface was selected or the option wasn't used, print all available
-  if(opts.interface == nullptr){
-
-    // Get the list and check for errors
-    pcap_if_t *interfaces;
-    if(pcap_findalldevs(&interfaces, errbuf) == -1){
-      cerr << "Error in pcap_findalldevs_ex: " << errbuf << endl;
-      exit(1);
-
-    // Print it and free the memory
-    }else{
-      cout << "Interface list:" << endl;
-      for(pcap_if_t *i = interfaces; i != nullptr; i = i->next){
-        cout << "  " << i->name << endl;
-      }
-      pcap_freealldevs(interfaces);
-    }
-
-    exit(0);
-  }
-
   return opts;
+}
+
+
+/**
+ * @brief Print all available interfaces
+ */
+void printInterfaces(){
+
+  // Get the list and check for errors
+  pcap_if_t *interfaces;
+  if(pcap_findalldevs(&interfaces, errbuf) == -1){
+    cerr << "Error in pcap_findalldevs_ex: " << errbuf << endl;
+    exit(1);
+
+  // Print it and free the memory
+  }else{
+    cout << "Interface list:" << endl;
+    for(pcap_if_t *i = interfaces; i != nullptr; i = i->next){
+      cout << "  " << i->name << endl;
+    }
+    pcap_freealldevs(interfaces);
+  }
 }
 
 
@@ -308,21 +314,9 @@ void print_data(const u_char *packet, int frameLen, int offset){
         cout << c;
       }
     }
+
     cout << endl;
   }
-}
-
-
-/**
- * @brief Prints information about an ARP packet (none needs to be printed so
- * it prints none)
- */
-void print_arp_packet(){
-  cout << "src IP:" << endl;
-  cout << "dst IP:" << endl;
-  cout << "src port:" << endl;
-  cout << "dst port:" << endl;
-  // TODO print data? There is none, so print the whole ARP message?
 }
 
 
@@ -395,9 +389,6 @@ void print_ip_packet(const u_char *packet, int frameLen, int version){
   if(protocol != ICMP_N){
     cout << "src port: " << (int)((short)*(packet + offset)) << endl;
     cout << "dst port: " << (int)((short)*(packet + offset + 2)) << endl;
-  }else{
-    cout << "src port:" << endl;
-    cout << "dst port:" << endl;
   }
 
   // Add the packet header length to the offset variable
@@ -438,6 +429,13 @@ int main(int argc, char **argv){
 
   // Get all user options to a structure
   struct options opts = get_options(argc, argv);
+
+  // If no interface was selected or the option wasn't even used, print all 
+  // interfaces available
+  if(!opts.interface){
+    printInterfaces();
+    return 0;
+  }
   
   // Open the interface provided
   open_interface(opts.interface);
@@ -456,10 +454,10 @@ int main(int argc, char **argv){
     struct pcap_pkthdr header;
     const u_char *packet = pcap_next(handle, &header);
 
-    // Print the timestamp
-    time_t tmp = header.ts.tv_sec;
-    cout << "timestamp: " << put_time(gmtime(&tmp), "%FT%T") << '.' 
-      << setfill('0') << setw(3) << 'Z' << endl;
+    // Print the timestamp - YYYY-MM-DDThh:mm:ss.mmmZ
+    cout << "timestamp: " << put_time(gmtime(&header.ts.tv_sec), "%FT%T");
+    cout << '.' << setfill('0') << setw(6) << header.ts.tv_usec;
+    cout << 'Z' << endl;
 
     // Get the ethernet frame header and print MAC addresses
     const struct ether_header *eth_hdr = (struct ether_header*)(packet);
@@ -472,11 +470,8 @@ int main(int argc, char **argv){
     // The packet is of ARP protocol
     if(eth_hdr->ether_type == 0x0806 || eth_hdr->ether_type == 0x0608){
 
-      // Print the network layer protocol
+      // Print the network layer protocol and we're done
       cout << "Network layer protocol: ARP" << endl;
-
-      // Print all data needed about an ARP packet
-      print_arp_packet();
 
     // The packet is of IP protocol - get the version and print more data
     }else{
