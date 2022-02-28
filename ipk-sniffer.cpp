@@ -5,7 +5,6 @@
  */
 
 // Standard libraries
-#include <pcap.h>
 #include <iomanip>
 #include <iostream>
 #include <getopt.h>
@@ -14,10 +13,10 @@
 #include <bitset>
 
 // Networking libraries
+#include <pcap.h>
 #include <arpa/inet.h>
 #include <netinet/ether.h>
-#include <netinet/ip.h>        // IPv4
-#include <netinet/ip6.h>       // IPv6
+#include <netinet/ip6.h>
 #include <netinet/tcp.h>
 #include <netinet/ip_icmp.h>
 
