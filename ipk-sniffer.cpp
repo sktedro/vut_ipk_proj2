@@ -38,6 +38,8 @@ const int TCP_N = 6;
 const int UDP_N = 17;
 const int ICMP_N = 1;
 
+// When displayin data, this is the amount of characters for the 'title'
+// eg. 'timestamp:----fill-----2022...'
 const int DATA_INDENT = 25;
 
 // Usage string
