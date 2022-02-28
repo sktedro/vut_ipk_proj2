@@ -515,12 +515,13 @@ void parse_arp_packet(const u_char *frame, int offset){
   const struct ether_arp *arp_hdr = (struct ether_arp *)(frame + offset);
 
   // Print the operation (request or reply)
+  print_with_indent("Operation: ");
   if(ntohs(arp_hdr->ea_hdr.ar_op) == 1){
-    cout << "Operation: Request" << endl;
+    cout << "Request" << endl;
   }else if(ntohs(arp_hdr->ea_hdr.ar_op) == 2){
-    cout << "Operation: Reply" << endl;
+    cout << "Reply" << endl;
   }else{
-    cout << "Operation: unknown: " << ntohs(arp_hdr->ea_hdr.ar_op) << endl;
+    cout << "unknown: " << ntohs(arp_hdr->ea_hdr.ar_op) << endl;
   }
 
   // Print source MAC address
