@@ -169,15 +169,6 @@ struct options get_options(int argc, char **argv){
         cout << usage;
         exit(0);
     }
-
-    // If there was a problem parsing options, exit
-    // TODO: option after -i makes this exit
-    /*
-     * if(opterr){
-     *   cerr << "Error parsing options" << endl;
-     *   exit(1);
-     * }
-     */
   }
 
   return opts;
