@@ -40,9 +40,10 @@ const int ICMP_N = 1;
 // Usage string
 const string usage = "Usage:\n\
 \n\
-./ipk-sniffer [-i int] {-p port} {[--tcp] [--udp] [--arp] [--icmp]} {-n num}\n\
+./ipk-sniffer [-h] [-i int] [-p port] [--tcp] [--udp] [--arp] [--icmp] [-n num]\n\
 \n\
 Options:\n\
+  -h print this help\n\
   -i interface to sniff on\n\
   -p port to use\n\
   --tcp, --udp, --icmp, --arp select protocols to filter the traffic by. If\n\
@@ -118,7 +119,7 @@ struct options get_options(int argc, char **argv){
 
   // Parse the provided options 
   int opt;
-  while((opt = getopt_long(argc, argv, "i::p:tun:", longOpts, nullptr)) != -1){
+  while((opt = getopt_long(argc, argv, "i::p:tun:h", longOpts, nullptr)) != -1){
     switch (opt){
       case 'i':
         if(optind < argc && argv[optind][0] != '-'){
@@ -137,6 +138,14 @@ struct options get_options(int argc, char **argv){
       case 'n':
         opts.packetsAmount = stoi(optarg);
         break;
+      case 'h':
+        cout << usage;
+        exit(0);
+    }
+
+    // If there was a problem parsing options, exit
+    if(opterr){
+      exit(1);
     }
   }
 
