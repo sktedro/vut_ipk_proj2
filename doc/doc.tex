@@ -12,7 +12,7 @@
 \usepackage{geometry}
 % \usepackage{amsmath, amssymb, amsthm}
 \usepackage[unicode]{hyperref}
-% \usepackage{graphicx}
+\usepackage{graphicx}
 
 \usepackage{enumitem}
 
@@ -76,9 +76,15 @@
   
   To explain the protocols supported by our packet sniffer, we must first 
   introduce the OSI conceptual model of a networking system. Everything 
-  important to understand can be explained by figure TODO ref.
+  important to understand can be explained by figure 1.
 
-  % TODO include OSI model img
+  % TODO cite https://techsoftcenter.com/osi-model/
+
+  \begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{./src/osi.eps}
+    \caption{OSI model}
+  \end{figure}
 
   \subsubsection{Data units}
 
@@ -105,7 +111,8 @@
       \textit{frame sniffer} instead of \textit{packet sniffer}.
   \end{notes}
 
-  \newpage
+  \vspace{1cm}
+
 
   \subsection{Supported protocols}
 
@@ -233,12 +240,8 @@
   the packet contents. A single ARP packet can represent an ARP request or an 
   ARP response.
 
-  % TODO
-  protocol type
-  opcode (req or reply)
-  macs
   \begin{itemize}
-    \item \textbf{Header length}: 20 to 60 bytes (160 to 480 bits)
+    \item \textbf{Header length}: 8 bytes (64 bits)
     \item \textbf{Important packet fields}:
       \begin{table}[h]
         \centering
@@ -247,42 +250,16 @@
           Field name & Data it represents & Field length & Field offset \\
           \hline
           \hline
-          PTYPE & Protocol type & 16 bits & 16 bits \\
-          \hline
           OPCODE & Indicating a request or a reply & 16 bits & 48 bits \\
           \hline
           Source MAC address & & 48 bits & 64 bits \\
           \hline
-          Destination MAC address & & 48 bits & 144 bits \\
+          Target MAC address & & 48 bits & 144 bits \\
           \hline
         \end{tabular}
         \caption{Important ARP packet fields}
       \end{table}
   \end{itemize}
-
-
-  \begin{table}[h]
-    \centering
-    \begin{tabular}{|p{3cm}|p{3cm}|p{3cm}|p{3cm}|}
-      \hline
-      \multicolumn{2}{|p{6cm}|}{Hardware type} 
-        & \multicolumn{2}{|p{6cm}|}{Protocol type} \\
-      \hline
-      HW addr. length & Prot. addr. type 
-        & \multicolumn{2}{|p{6cm}|}{Operation Code}\\
-      \hline
-      \multicolumn{4}{|c|}{Source MAC} \\
-      \hline
-      \multicolumn{4}{|c|}{Source protocol address} \\
-      \hline
-      \multicolumn{4}{|c|}{Target MAC} \\
-      \hline
-      \multicolumn{4}{|c|}{Target protocol address} \\
-      \hline
-    \end{tabular}
-    \caption{ARP packet contents}
-    \label{arp_packet}
-  \end{table}
 
   \vspace{1cm}
 
@@ -318,6 +295,12 @@
           Source port & & 16 bits & 0 bits \\
           \hline
           Destination port & & 16 bits & 16 bits \\
+          \hline
+          Sequence number & & 32 bits & 32 bits \\
+          \hline
+          Sequence number & & 32 bits & 64 bits \\
+          \hline
+          Flags & & 8 bits & 104 bits \\
           \hline
           Data offset & Header length in 32-bit words & 4 bits & 96 bits \\
           \hline
@@ -385,7 +368,43 @@
       \end{table}
   \end{itemize}
 
+  \vspace{1cm}
 
+
+  \section{Implementation}
+
+  \subsection{Networking libraries used}
+
+  This is a list of networking libraries used and some of functions or 
+  structures they provide:
+  \begin{itemize}
+    \item \verb|pcap.h| provides several important functions for discovering
+      available interfaces and using them
+    \item \verb|arpa/inet.h| provides \verb|inet_ntop| function used to 
+      convert IP addresses to strings, \verb|ntohs| and \verb|ntohl|
+      functions to parse header data in case of different network and host 
+      \verb|endianness|
+    \item \verb|netinet/ether.h| provides \verb|ether_header| structure
+      that an ethernet header can be typecasted to
+    \item \verb|netinet/ip6.h| provides \verb|ip6_hdr| structure
+    \item \verb|netinet/tcp.h| provides \verb|tcp_hdr| structure
+    \item \verb|netinet/ip_icmp.h| provides \verb|ip| and \verb|icmphdr|
+      structures
+  \end{itemize}
+
+
+  \subsection{My implementation}
+  % TODO
+  getopt err neriešim
+  veci naviac čo vypisujem
+  indentujem výstup
+  píšem aj CRC?
+
+
+  \section{Testing}
+  % TODO
+
+  NTOHS a také netreba používať na dátach, iba pre header informácie (a samozrjeme len pre 16b alebo dlhšie či čo)
 
 
 
