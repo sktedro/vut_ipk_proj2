@@ -37,7 +37,9 @@ Options:\n\
   -p port to use\n\
   --tcp, --udp, --icmp, --arp select protocols to filter the traffic by. If\n\
     none is used, all four protocols are selected by default\n\
-  -n amount of packets to stop after\n";
+  -n amount of packets to stop after\n\
+\n\
+Note: Program may require root privileges\n";
 
 
 /*
