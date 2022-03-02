@@ -59,7 +59,7 @@ The code requires some standard libraries along with `arpa/inet` and several
 
 #### Kill command
 
-The sniffer can be safely killed using SIGINT signal (Ctrl+C). Using any other
+The sniffer can be safely killed using `SIGINT` signal (Ctrl+C). Using any other
 signal might result in an interface handle not being closed.
 
 
