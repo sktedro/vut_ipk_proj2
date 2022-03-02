@@ -23,7 +23,7 @@ num]`
   If none is used, all four protocols are selected by default \
 `-n` amount of packets to stop after \ 
 
-`Note: Program may require root privileges`
+Note: Program may require root privileges
 
 ### Examples
 
