@@ -1,5 +1,6 @@
 /**
  * @brief A simple packet (frame) sniffer
+ * @file ipk-sniffer.c
  * @author Patrik Skaloš
  * @year 2022
  */
@@ -20,53 +21,11 @@
 #include <netinet/tcp.h>
 #include <netinet/ip_icmp.h>
 
+// Header files
+#include "ipk-sniffer.h"
+
 
 using namespace std;
-
-
-/*
- * Constants
- */
-
-
-// Maximum IP address length in chars
-const int MAX_IP_LEN = 32;
-
-// Numbers identifying protocols in headers
-const int TCP_N = 6;
-const int UDP_N = 17;
-const int ICMP_N = 1;
-
-// When displayin data, this is the amount of characters for the 'title'
-// eg. 'timestamp:----fill-----2022...'
-const int DATA_INDENT = 25;
-
-// Usage string
-const string usage = "Usage:\n\
-\n\
-./ipk-sniffer [-h] [-i int] [-p port] [--tcp] [--udp] [--arp] [--icmp] [-n num]\n\
-\n\
-Options:\n\
-  -h print this help\n\
-  -i interface to sniff on\n\
-  -p port to use\n\
-  --tcp, --udp, --icmp, --arp select protocols to filter the traffic by. If\n\
-    none is used, all four protocols are selected by default\n\
-  -n amount of packets to stop after\n";
-
-
-/*
- * Structures
- */
-
-
-// A structure containing all user-provided options
-struct options{
-  char *interface = nullptr;
-  int port = -1;
-  int tcp = 0, udp = 0, arp = 0, icmp = 0;
-  int packetsAmount = 1;
-};
 
 
 /*
@@ -308,24 +267,21 @@ void apply_filter(string filterExpr){
 
 
 /**
- * @brief Print all data of packet from the offset to the end in format:
+ * @brief Print all data of the frame in format:
  * offset, 16 characters in hex separated by a space, characters.
  * While offset is a four digit hex number followed by a colon and
  * non-printable characters are printed as dots
  *
  * @param frame (const u_char *, whole frame)
  * @param frameLen (int, total length of the frame)
- * @param offset (int, offset from the start of the frame to the data field)
  */
-void print_data(const u_char *frame, int frameLen, int offset){
+void print_data(const u_char *frame, int frameLen){
 
-  // Start at the offset since we only want to print the data
   cout << endl;
-  for(int j = offset; j < frameLen; j += 16){
+  for(int j = 0; j < frameLen; j += 16){
 
     // Print offset from the beginning of the data field in hex
-    cout << "0x" << right << hex << setfill('0') << setw(4) << j - offset 
-      << ": ";
+    cout << "0x" << right << hex << setfill('0') << setw(4) << j << ": ";
 
     // Print bytes with spaces separating them one by one
     for(int k = j; k < j + 16; k++){
@@ -370,22 +326,21 @@ void print_data(const u_char *frame, int frameLen, int offset){
 
 
 /**
- * @brief Prints information about an IP packet (TCP, UDP or ICMP) - IP
- * addresses, ports and calls print_data() function to print all the
- * encapsulated data
+ * @brief Prints information about an IP packet (v4, v6) of protocols TCP, UDP
+ * and ICMP - IP addresses and ports 
  *
  * @param frame (const u_char *, whole frame)
  * @param frameLen (int, total frame length)
  * @param version (int, IP protocol version)
  */
-void parse_ip_packet(const u_char *frame, int offset, int frameLen, int version){
+void parse_ip_packet(const u_char *frame, int offset, int version){
 
-  char srcIp[MAX_IP_LEN];
-  char dstIp[MAX_IP_LEN];
+  char srcIp[INET6_ADDRSTRLEN];
+  char dstIp[INET6_ADDRSTRLEN];
   int protocol;
 
   // Get IP addresses and protocol used from the frame and increment the offset
-  // (all using different ways for ipv4 and ipv6)
+  // (all using different ways for v4 and v6)
   if(version == 4){
 
     // Typecast to an IPv4 struct from netinet/ip.h library
@@ -396,8 +351,8 @@ void parse_ip_packet(const u_char *frame, int offset, int frameLen, int version)
     offset += (int)(ipv4_hdr->ip_hl) * 4;
 
     // Convert the version 4 IPs to strings using arpa/inet.h library
-    inet_ntop(AF_INET, &(ipv4_hdr->ip_src), srcIp, MAX_IP_LEN);
-    inet_ntop(AF_INET, &(ipv4_hdr->ip_dst), dstIp, MAX_IP_LEN);
+    inet_ntop(AF_INET, &(ipv4_hdr->ip_src), srcIp, INET6_ADDRSTRLEN);
+    inet_ntop(AF_INET, &(ipv4_hdr->ip_dst), dstIp, INET6_ADDRSTRLEN);
 
     // Get the protocol number
     protocol = (int)ipv4_hdr->ip_p;
@@ -411,21 +366,28 @@ void parse_ip_packet(const u_char *frame, int offset, int frameLen, int version)
     offset += 40; 
 
     // Convert the version 6 IPs to strings using arpa/inet.h library
-    inet_ntop(AF_INET6, &(ipv6_hdr->ip6_src), srcIp, MAX_IP_LEN);
-    inet_ntop(AF_INET6, &(ipv6_hdr->ip6_dst), dstIp, MAX_IP_LEN);
+    inet_ntop(AF_INET6, &(ipv6_hdr->ip6_src.s6_addr), srcIp, INET6_ADDRSTRLEN);
+    inet_ntop(AF_INET6, &(ipv6_hdr->ip6_dst.s6_addr), dstIp, INET6_ADDRSTRLEN);
 
     // Get the protocol number
     protocol = (int)ipv6_hdr->ip6_ctlun.ip6_un1.ip6_un1_nxt;
   }
 
-  // Print the transport layer protocol
-  print_with_indent("transport layer proto: ");
+  // Print the network layer protocol (IPv4 or IPv6 if it is not ICMP)
+  print_with_indent("network layer proto: ");
+  if(protocol != ICMP_N){
+    cout << "IPv" << version << endl;
+  }else{
+    cout << "ICMP" << endl;
+  }
+
+  // Print the transport layer protocol if the network layer proto is not ICMP
   if(protocol == TCP_N){
+    print_with_indent("transport layer proto: ");
     cout << "TCP" << endl;
   }else if(protocol == UDP_N){
+    print_with_indent("transport layer proto: ");
     cout << "UDP" << endl;
-  }else if(protocol == ICMP_N){
-    cout << "ICMP" << endl;
   }
 
   // Print the source IP address
@@ -436,69 +398,56 @@ void parse_ip_packet(const u_char *frame, int offset, int frameLen, int version)
   print_with_indent("dst IP: ");
   cout << dstIp << endl;
 
-  // Print ports if TCP or UDP is used (ICMP doesn't use a port)
-  // (they are at the same place for both tcp and udp protocols)
-  if(protocol != ICMP_N){
-
-    // Print the source port
-    print_with_indent("src port: ");
-    cout << (int)*(frame + offset) << endl;
-
-    // Print the destination port
-    print_with_indent("dst port: ");
-    cout << (int)*(frame + offset + 2) << endl;
-  }
-
-  // If it is a TCP segment, print sequence and ack numbers and frames as bits
-  if(protocol == TCP_N){
-
-    // Typecast to a TCP header structure
-    const struct tcphdr *tcp_hdr = (struct tcphdr*)(frame + offset);
-
-    // Print sequence number
-    print_with_indent("seq number: ");
-    cout << tcp_hdr->th_seq << endl;
-
-    // Print ack number
-    print_with_indent("ack number: ");
-    cout << tcp_hdr->th_ack << endl;
-
-    // Print flags as bits
-    bitset<8> flags(tcp_hdr->th_flags);
-    print_with_indent("flags as bits: ");
-    cout << flags << endl;
-
-    // The amount of 32b words in TCP header is in 'Data offset' field
-    offset += 4 * (int)(tcp_hdr->th_off);
-
-
-  // For the UDP header, there is no information to print
-  }else if(protocol == UDP_N){
-
-    // UDP has a fixed header length size of 8B
-    offset += 8;
-
-
-  // For the ICMP header, print type and subtype (code)
-  }else if(protocol == ICMP_N){
+  // If it is an ICMP packet, parse the ICMP header and print msg type and code
+  // (IP header was already parsed)
+  if(protocol == ICMP_N){
 
     // Typecast to an ICMP header structure
     const struct icmphdr *icmp_hdr = (struct icmphdr *)(frame + offset);
 
     // Print message type 
     print_with_indent("msg type: ");
-    cout << (int)icmp_hdr->type << endl;
+    cout << dec << (int)icmp_hdr->type << endl;
 
     // Print message code (sybtype)
     print_with_indent("msg code: ");
-    cout << (int)icmp_hdr->code << endl;
+    cout << dec << (int)icmp_hdr->code << endl;
 
-    // ICMP has a fixed header length size of 8B
-    offset += 8;
+  // If it is not ICMP (is TCP or UDP segment), print ports - they are at the
+  // same offset for both TCP and UDP
+  // (ICMP doesn't use a port)
+  }else{
+
+    // Print the source port
+    print_with_indent("src port: ");
+    cout << dec << ntohs(*(unsigned short *)(frame + offset)) << endl;
+
+    // Print the destination port
+    print_with_indent("dst port: ");
+    cout << dec << ntohs(*(unsigned short *)(frame + offset + 2)) << endl;
+
+    // If the segment is TCP, also parse the TCP header and print relevant data
+    // (there is no useful data for us in the UDP header other than the port)
+    // (So, for TCP, print sequence and ack numbers and frames as bits)
+    if(protocol == TCP_N){
+
+      // Typecast to a TCP header structure
+      const struct tcphdr *tcp_hdr = (struct tcphdr*)(frame + offset);
+
+      // Print sequence number
+      print_with_indent("seq number (raw): ");
+      cout << dec << ntohl((int)tcp_hdr->th_seq) << endl;
+
+      // Print ack number
+      print_with_indent("ack number (raw): ");
+      cout << dec << ntohl((int)tcp_hdr->th_ack) << endl;
+
+      // Print flags as bits
+      bitset<8> flags(tcp_hdr->th_flags);
+      print_with_indent("flags as bits: ");
+      cout << flags << endl;
+    }
   }
-
-  // Print the data no matter which protocol it was
-  print_data(frame, frameLen, offset);
 }
 
 
@@ -514,11 +463,11 @@ void parse_arp_packet(const u_char *frame, int offset){
   const struct ether_arp *arp_hdr = (struct ether_arp *)(frame + offset);
 
   // Print the operation (request or reply)
-  print_with_indent("Operation: ");
+  print_with_indent("operation: ");
   if(ntohs(arp_hdr->ea_hdr.ar_op) == 1){
-    cout << "Request" << endl;
+    cout << "request" << endl;
   }else if(ntohs(arp_hdr->ea_hdr.ar_op) == 2){
-    cout << "Reply" << endl;
+    cout << "reply" << endl;
   }else{
     cout << "unknown: " << ntohs(arp_hdr->ea_hdr.ar_op) << endl;
   }
@@ -527,9 +476,21 @@ void parse_arp_packet(const u_char *frame, int offset){
   print_with_indent("src MAC: ");
   print_mac((ether_addr *)arp_hdr->arp_sha);
 
+  // Print source IP address
+  char srcIp[MAX_IP_LEN];
+  inet_ntop(AF_INET, &(arp_hdr->arp_spa), srcIp, MAX_IP_LEN);
+  print_with_indent("src IP: ");
+  cout << srcIp << endl;
+
   // Print target MAC address
   print_with_indent("tgt MAC: ");
   print_mac((ether_addr *)arp_hdr->arp_tha);
+
+  // Print target IP address
+  char dstIp[MAX_IP_LEN];
+  inet_ntop(AF_INET, &(arp_hdr->arp_tpa), dstIp, MAX_IP_LEN);
+  print_with_indent("tgt IP: ");
+  cout << dstIp << endl;
 }
 
 
@@ -554,7 +515,7 @@ void parse_frame(const u_char *frame, int frameLen){
   
   // Print frame length
   print_with_indent("frame length: ");
-  cout << frameLen << " bytes" << endl;
+  cout << dec << frameLen << " bytes" << endl;
 
   // Initialize the offset to 14 (fixed ethernet frame header length is 14B)
   int offset = 14;
@@ -570,7 +531,7 @@ void parse_frame(const u_char *frame, int frameLen){
     parse_arp_packet(frame, offset);
 
 
-  // The packet is of IP protocol - get the version and print more data
+  // The packet is of IP or ICMP protocol - get the version and print more data
   }else{
 
     // Get the IP protocol version
@@ -581,12 +542,8 @@ void parse_frame(const u_char *frame, int frameLen){
       version = 6;
     }
 
-    // Print the network layer protocol
-    print_with_indent("network layer proto: ");
-    cout << "IPv" << version << endl;
-
-    // Print IP addresses, ports and data of an IP packet
-    parse_ip_packet(frame , offset, frameLen, version);
+    // Print IP addresses, ports and data of an IP packet (v4, v6, ICMP)
+    parse_ip_packet(frame, offset, version);
   }
 }
 
@@ -632,18 +589,26 @@ int main(int argc, char **argv){
   // receiving each one of them
   for(int i = 0; i < opts.packetsAmount; i++){
 
-    // Grab a frame
+    // Grab a frame, ignore errors
     struct pcap_pkthdr header;
     const u_char *frame = pcap_next(handle, &header);
+    if(!frame){
+      cerr << "An error occured when grabbing a frame. Exiting" << endl;
+      pcap_close(handle);
+      return 1;
+    }
 
     // Print the timestamp - YYYY-MM-DDThh:mm:ss.mmmZ
     print_with_indent("timestamp: ");
-    cout << put_time(gmtime(&header.ts.tv_sec), "%FT%T")
-      << '.' << setfill('0') << setw(6) << header.ts.tv_usec << 'Z' << endl;
+    cout << put_time(gmtime(&header.ts.tv_sec), "%FT%T") << '.' << right
+      << setfill('0') << setw(6) << dec << header.ts.tv_usec << 'Z' << endl;
 
     // Parse the frame and print all valuable information. If 'false' is
     // returned, it means the packet was not processed nor printed
     parse_frame(frame, header.caplen);
+
+    // Print the data no matter which protocol it was
+    print_data(frame, header.caplen);
 
     cout << endl;
   }
