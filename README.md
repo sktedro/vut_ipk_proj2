@@ -16,12 +16,14 @@ Patrik Skaloš
 `./ipk-sniffer [-h] [-i int] [-p port] [--tcp] [--udp] [--arp] [--icmp] [-n
 num]`
 
-`-h` print this help
-`-i` interface to sniff on
-`-p` port to use
+`-h` print this help \
+`-i` interface to sniff on \
+`-p` port to use \
 `--tcp`, `--udp`, `--icmp`, `--arp` select protocols to filter the traffic by. 
-  If none is used, all four protocols are selected by default
-`-n` amount of packets to stop after
+  If none is used, all four protocols are selected by default \
+`-n` amount of packets to stop after \ 
+
+`Note: Program may require root privileges`
 
 ### Examples
 
