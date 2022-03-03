@@ -20,7 +20,8 @@ const int MAX_IP_LEN = 32;
 // Numbers identifying protocols in headers
 const int TCP_N = 6;
 const int UDP_N = 17;
-const int ICMP_N = 1;
+const int ICMPV4_N = 1;
+const int ICMPV6_N = 58;
 
 // When displayin data, this is the amount of characters for the 'title'
 // eg. 'timestamp:----fill-----2022...'

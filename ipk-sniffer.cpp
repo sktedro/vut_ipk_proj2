@@ -15,7 +15,7 @@
 
 // Networking libraries
 #include <pcap.h>
-#include <arpa/inet.h>
+// #include <arpa/inet.h>
 #include <netinet/ether.h>
 #include <netinet/ip6.h>
 #include <netinet/tcp.h>
@@ -234,7 +234,7 @@ string get_filter_expr(struct options opts){
   add_filter_primitive(&protocolsFilter, opts.tcp,  "tcp",  opts.port);
   add_filter_primitive(&protocolsFilter, opts.udp,  "udp",  opts.port);
   add_filter_primitive(&protocolsFilter, opts.arp,  "arp",  opts.port);
-  add_filter_primitive(&protocolsFilter, opts.icmp, "icmp", -1);
+  add_filter_primitive(&protocolsFilter, opts.icmp, "icmp or icmp6", -1);
 
   return protocolsFilter;
 }
@@ -373,12 +373,17 @@ void parse_ip_packet(const u_char *frame, int offset, int version){
     protocol = (int)ipv6_hdr->ip6_ctlun.ip6_un1.ip6_un1_nxt;
   }
 
+  //TODO
+  if(protocol == ICMPV4_N){
+    return;
+  }
+
   // Print the network layer protocol (IPv4 or IPv6 if it is not ICMP)
   print_with_indent("network layer proto: ");
-  if(protocol != ICMP_N){
-    cout << "IPv" << version << endl;
+  if(protocol == ICMPV4_N || protocol == ICMPV6_N){
+    cout << "ICMPv" << version << endl;
   }else{
-    cout << "ICMP" << endl;
+    cout << "IPv" << version << endl;
   }
 
   // Print the transport layer protocol if the network layer proto is not ICMP
@@ -398,20 +403,17 @@ void parse_ip_packet(const u_char *frame, int offset, int version){
   print_with_indent("dst IP: ");
   cout << dstIp << endl;
 
-  // If it is an ICMP packet, parse the ICMP header and print msg type and code
-  // (IP header was already parsed)
-  if(protocol == ICMP_N){
-
-    // Typecast to an ICMP header structure
-    const struct icmphdr *icmp_hdr = (struct icmphdr *)(frame + offset);
+  // If it is an ICMP packet, read the first and second byte to print msg type 
+  // and code (IP header was already parsed)
+  if(protocol == ICMPV4_N || protocol == ICMPV6_N){
 
     // Print message type 
     print_with_indent("msg type: ");
-    cout << dec << (int)icmp_hdr->type << endl;
+    cout << dec << (int)*(uint8_t *)(frame + offset) << endl;
 
     // Print message code (sybtype)
     print_with_indent("msg code: ");
-    cout << dec << (int)icmp_hdr->code << endl;
+    cout << dec << (int)*(uint8_t *)(frame + offset + 1) << endl;
 
   // If it is not ICMP (is TCP or UDP segment), print ports - they are at the
   // same offset for both TCP and UDP
