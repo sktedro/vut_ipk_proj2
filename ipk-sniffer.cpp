@@ -15,7 +15,6 @@
 
 // Networking libraries
 #include <pcap.h>
-// #include <arpa/inet.h>
 #include <netinet/ether.h>
 #include <netinet/ip6.h>
 #include <netinet/tcp.h>
@@ -371,11 +370,6 @@ void parse_ip_packet(const u_char *frame, int offset, int version){
 
     // Get the protocol number
     protocol = (int)ipv6_hdr->ip6_ctlun.ip6_un1.ip6_un1_nxt;
-  }
-
-  //TODO
-  if(protocol == ICMPV4_N){
-    return;
   }
 
   // Print the network layer protocol (IPv4 or IPv6 if it is not ICMP)
