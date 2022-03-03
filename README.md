@@ -3,7 +3,8 @@
 This is a simple packet sniffer capable of capturing frames on one interface
 while allowing filtering by port number. It can capture frames of TCP, UDP, ARP
 and ICMP protocols and user options allow for filtering any combination of these
-protocols. It is written in C++.
+protocols. It supports both IPv4 and IPv6 packets (so capturing ICMP packets 
+captures both ICMPv4 and ICMPv6). It is written in C++.
 
 
 # Author
@@ -47,7 +48,7 @@ or
 
 `./ipk-sniffer -i wlo1 -p 80 --tcp --udp --arp --icmp`
 
-#### Listen on interface wlo1 for an ICMP frame or  UDP frame on port 80
+#### Listen on interface wlo1 for an ICMP frame or UDP frame on port 80
 
 `./ipk-sniffer -i wlo1 -p 80 --udp --icmp`
 
