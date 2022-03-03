@@ -245,7 +245,9 @@
   not encapsulated in an IP packet in any way (evidence lies in the fact that 
   it is a network layer protocol, not transport layer protocol. However, ICMP 
   packet could be represented as an union of IP header, ICMP header and data, 
-  since the beginning of the ICMP header is the same as an IP header.
+  since the beginning of the ICMP header is the same as an IP header. Our
+  program supports both ICMPv4 and ICMPv6 (although the user cannot filter
+  out packets based on the ICMP version).
   For more information, see \cite{wikipedia:icmp}.
 
   \begin{notes}
@@ -267,7 +269,8 @@
           Code & Message code (subtype) & 8 bits & 8 bits \\
           \hline
         \end{tabular}
-        \caption{Important ICMP header fields (without the IP part)}
+        \caption{Important ICMP header fields, same for ICMPv4 and ICMPv6 
+          (without the IP part)}
       \end{table}
   \end{itemize}
 
@@ -430,7 +433,7 @@
   \begin{itemize}
     \item IPv4
     \item IPv6
-    \item ICMP
+    \item ICMP (v4 and v6)
     \item ARP
   \end{itemize}
 
@@ -692,7 +695,8 @@
   is not to say that the project was easy. Understanding the layers and 
   protocols took a lot of time and some things still confuse me or I am still 
   not sure about (e.g. what exactly is the relationship between the ICMP and IP
-  protocols).
+  protocols). However, I now finally understand and can imagine how data is 
+  really transferred over networks.
 
   \newpage
 
